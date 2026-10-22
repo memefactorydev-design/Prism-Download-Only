@@ -1,0 +1,101 @@
+[
+  {
+    "id": "scout",
+    "name": "Scout",
+    "title": "Ads Intelligence & ROAS Research",
+    "platform": "ads",
+    "emoji": "🔭",
+    "color": "#e0b252",
+    "tagline": "Mines competitor ad libraries and turns what's converting in your niche into winning ad briefs."
+  },
+  {
+    "id": "harriet",
+    "name": "Harriet",
+    "title": "Houzz Specialist",
+    "platform": "houzz",
+    "emoji": "🏡",
+    "color": "#4dbc15",
+    "tagline": "Runs your Houzz presence — projects, ideabooks, reviews and Best of Houzz, for home and design brands."
+  },
+  {
+    "id": "pia",
+    "name": "Pia",
+    "title": "Pinterest Specialist",
+    "platform": "pinterest",
+    "emoji": "📌",
+    "color": "#e60023",
+    "tagline": "Builds the boards, pin SEO and fresh-pin engine that sends high-intent browsers to your site."
+  },
+  {
+    "id": "isla",
+    "name": "Isla",
+    "title": "Instagram Specialist",
+    "platform": "instagram",
+    "emoji": "📸",
+    "color": "#d62976",
+    "tagline": "Reels, grids, Stories and hooks that turn followers into enquiries."
+  },
+  {
+    "id": "felix",
+    "name": "Felix",
+    "title": "Facebook & Meta Ads Specialist",
+    "platform": "facebook",
+    "emoji": "👥",
+    "color": "#1877f2",
+    "tagline": "Lead-gen campaign structures, retargeting ladders and creative testing on Meta."
+  },
+  {
+    "id": "yara",
+    "name": "Yara",
+    "title": "YouTube Specialist",
+    "platform": "youtube",
+    "emoji": "▶️",
+    "color": "#ff0033",
+    "tagline": "Channel strategy, video SEO, Shorts and behind-the-scenes storytelling that compounds."
+  },
+  {
+    "id": "kai",
+    "name": "Kai",
+    "title": "TikTok Specialist",
+    "platform": "tiktok",
+    "emoji": "🎵",
+    "color": "#00f2ea",
+    "tagline": "TikTok-native craft content, price transparency and search-led videos that fill the top of the funnel."
+  },
+  {
+    "id": "nova",
+    "name": "Nova",
+    "title": "Viral Content Creator",
+    "platform": "viral",
+    "emoji": "⚡",
+    "color": "#9b59ff",
+    "tagline": "Cross-platform short-form formats, hooks and scripts engineered to travel."
+  },
+  {
+    "id": "otto",
+    "name": "Otto",
+    "title": "SEO & GEO Strategist",
+    "platform": "seo",
+    "emoji": "🔍",
+    "color": "#37c2a0",
+    "tagline": "Blogs, backlinks, local landing pages and AI-search visibility for your website."
+  },
+  {
+    "id": "magnus",
+    "name": "Magnus",
+    "title": "Google Business Profile Commander",
+    "platform": "gmb",
+    "emoji": "📍",
+    "color": "#4285f4",
+    "tagline": "Total local-pack dominance: posts, reviews, Q&A and photos on your Business Profile."
+  },
+  {
+    "id": "lydia",
+    "name": "Lydia",
+    "title": "LinkedIn Specialist",
+    "platform": "linkedin",
+    "emoji": "💼",
+    "color": "#0a66c2",
+    "tagline": "Trade partnerships with architects, designers and developers — plus founder thought leadership that opens doors."
+  }
+]

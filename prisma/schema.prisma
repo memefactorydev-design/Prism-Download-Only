@@ -1,0 +1,587 @@
+// Prism AI — data model
+// SQLite for dev (zero setup). Swap provider to "postgresql" + new DATABASE_URL for prod.
+// Note: SQLite via Prisma has no native enum/Json types, so status fields are
+// validated strings (see src/lib constants) and JSON payloads are stored as strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Connection URL lives in prisma.config.ts (Prisma 7 convention), sourced from DATABASE_URL.
+datasource db {
+  provider = "sqlite"
+}
+
+// A connected external service (anthropic | postiz | meta).
+// Tokens are encrypted at rest with AES-256-GCM (src/lib/crypto.ts) — never stored plaintext.
+// Small key/value store for workspace-level switches, e.g. which AI engine
+// (Claude Code / Codex / Anthropic API) the dashboard selected.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Connection {
+  id             String   @id @default(cuid())
+  provider       String // "anthropic" | "postiz" | "meta" | ...
+  // "" = the shared workspace connection (the owner's). Postiz + Meta are
+  // per-user: beta testers connect their OWN accounts, so nothing they do
+  // touches the business's channels or ad account.
+  userId         String   @default("")
+  status         String   @default("disconnected") // disconnected | connected | error | pending_app_review
+  encryptedToken String? // AES-256-GCM ciphertext, base64
+  metadata       String? // JSON string: account ids, scopes, expiry, app review state
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([provider, userId])
+}
+
+// An uploaded image or video, stored via the storage driver (local disk in dev, S3 in prod).
+model MediaAsset {
+  id            String   @id @default(cuid())
+  userId        String   @default("") // "" = workspace; else the uploading user's sandbox
+  originalName  String
+  mimeType      String
+  sizeBytes     Int
+  storageDriver String // "local" | "s3"
+  storagePath   String // driver-relative path or S3 key
+  width         Int?
+  height        Int?
+  durationSecs  Float?
+  createdAt     DateTime @default(now())
+  posts         Post[]
+
+  @@index([userId, createdAt])
+}
+
+// A social post draft moving through draft -> pending_approval -> approved -> scheduled -> published.
+model Post {
+  id           String       @id @default(cuid())
+  userId       String       @default("") // "" = shared workspace; else the creating user's sandbox
+  channel      String // "instagram" | "facebook" | "tiktok" | "linkedin" | "youtube"
+  format       String       @default("post") // content format: post | reel | carousel | story | short | video
+  status       String       @default("draft") // draft | pending_approval | approved | scheduled | published | failed | rejected
+  title        String? // post title — used by YouTube; ignored by other channels
+  body         String // caption / copy, final text
+  hashtags     String? // space-separated final list
+  scheduledFor DateTime?
+  publishedAt  DateTime?
+  postizPostId String? // id returned by Postiz once scheduled
+  refractionGroup String? // shared id across the per-platform native cuts of one idea
+  createdBy    String? // agent name or "manual"
+  errorMessage String? // populated when status = failed — surfaced, never silent
+  media        MediaAsset[]
+  approval     Approval?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+// Explicit owner approval gate. Anything that posts publicly, spends money,
+// or changes budgets gets one of these and waits for a dashboard decision.
+model Approval {
+  id        String    @id @default(cuid())
+  kind      String // "post" | "ad_budget" | "ad_campaign" | "seo_change"
+  status    String    @default("pending") // pending | approved | rejected
+  payload   String // JSON string describing the exact action to execute on approval
+  reason    String? // agent's rationale shown in the dashboard
+  decidedAt DateTime?
+  post      Post?     @relation(fields: [postId], references: [id])
+  postId    String?   @unique
+  createdAt DateTime  @default(now())
+}
+
+// Structured output from any agent run, aggregated by the supervisor.
+model AgentReport {
+  id        String   @id @default(cuid())
+  agentName String // e.g. "ad-research-agent"
+  kind      String // "research_brief" | "ads_performance" | "seo_audit" | "weekly_report" | ...
+  title     String
+  content   String // markdown body
+  data      String? // JSON string of structured findings, when applicable
+  createdAt DateTime @default(now())
+
+  @@index([agentName, createdAt])
+}
+
+// Ranked ad idea produced by ad-research-agent (Phase 3).
+model AdIdea {
+  id             String   @id @default(cuid())
+  userId         String   @default("") // "" = workspace research; else a beta user's own
+  rank           Int
+  title          String
+  hook           String
+  format         String
+  targetAudience String
+  evidence       String? // sources / Ad Library references
+  brandAngle     String?
+  status         String   @default("new") // new | shortlisted | in_production | used | archived
+  createdAt      DateTime @default(now())
+}
+
+// A video-editing job (Phase 7, "Studio"): one raw upload fanned out into many
+// rendered clips by the worker process. Rendering is too slow for a request, so
+// the web layer only enqueues; src/worker drains the queue and updates progress.
+// SQLite: status/outputKinds are validated strings, transcript/edl are JSON strings.
+model VideoJob {
+  id             String          @id @default(cuid())
+  userId         String          @default("") // "" = workspace; else the creating user's sandbox
+  sourceAssetId  String // MediaAsset id of the raw upload (loose ref, like RoasSnapshot)
+  status         String          @default("queued") // queued | probing | transcribing | planning | rendering | complete | partial | failed
+  outputKinds    String          @default("reel") // CSV of requested kinds: "reel,ad,podcast"
+  progress       Int             @default(0) // 0-100, for the dashboard progress bar
+  stage          String? // human-readable current step, surfaced in the UI
+  transcript     String? // cached word-level transcript JSON — reused, never re-run
+  // Edit options chosen at upload (Opus-parity Phase D).
+  captionStyle   String          @default("bold") // caption template id (see CAPTION_STYLES)
+  reframe        String          @default("center") // "center" (static crop) | "track" (follow subject)
+  tightEdit      Boolean         @default(false) // remove filler words + dead air
+  subjectTrack   String? // cached JSON [{tMs,cxNorm,confidence}] from detection — reused across clips
+  mode           String          @default("single") // "single" | "montage" | "voiceover" | "fable_prep" (probe+transcribe project sources) | "fable" (execute a frozen FablePlan) | "adfilm" (generate Seedance/Veo segments, stitch + VO + captions)
+  captions       Boolean         @default(true) // burn animated captions; false = clean cinematic
+  musicAssetId   String? // MediaAsset id of a music track — montage music-bed / voice-over under-bed
+  beatSync       Boolean         @default(false) // montage: snap cuts to the music's beat
+  beatCadence    Int             @default(2) // beats per cut when beatSync (1=fast,2=punchy,4=smooth)
+  voBrief        String? // voiceover mode: the owner's brief for the narration script
+  voVoiceId      String? // voiceover mode: ElevenLabs voice id (null = connection default)
+  effects        Boolean         @default(true) // apply planner-chosen on-screen effects (zoom/punch/flash/slow-mo…)
+  morphs         Boolean         @default(false) // montage: allow paid AI morph bridges between shots (Seedance)
+  sfx            Boolean         @default(true) // mix cached ElevenLabs sound effects at cut/effect points
+  fableProjectId String? // fable modes: owning FableProject (loose ref, house style)
+  fablePlan      String? // fable mode: the FROZEN FablePlan JSON this render executes
+  draft          Boolean         @default(false) // fable mode: 480p/ultrafast preview encode
+  blueprint      String? // optional ContentTemplate blueprint the plan should follow (single mode)
+  templateTitle  String? // title of the applied template, for the report/label
+  renderLog      String? // adfilm mode: JSON array of per-segment renders {index, engine, capSecs, requestedSecs, actualSecs}
+  errorMessage   String? // populated on failure — surfaced, never silent
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  clips          GeneratedClip[]
+  sources        VideoSource[]
+
+  @@index([status, createdAt])
+}
+
+// A single input video of a montage job (Phase M). Single-mode jobs don't use
+// this — they keep VideoJob.sourceAssetId/transcript. Each source caches its own
+// transcript so re-runs never re-transcribe.
+model VideoSource {
+  id           String   @id @default(cuid())
+  jobId        String
+  index        Int // playback/reference order, 0-based
+  assetId      String // MediaAsset id of the raw upload
+  transcript   String? // cached word-level transcript JSON
+  width        Int?
+  height       Int?
+  durationSecs Float?
+  job          VideoJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@index([jobId, index])
+}
+
+// One rendered output of a VideoJob: a reel, a Meta ad variant, or the podcast edit.
+model GeneratedClip {
+  id                String   @id @default(cuid())
+  jobId             String
+  kind              String // "reel" | "ad" | "podcast"
+  rank              Int      @default(0) // engagement rank within its kind, best first
+  title             String
+  hook              String // the first 2-3 seconds, written out (sourced from AdIdea where relevant)
+  caption           String? // suggested caption + hashtags for posting
+  sourceInMs        Int? // segment start in the source (null for multi-segment podcast)
+  sourceOutMs       Int?
+  edl               String // JSON: full segment list, crop, captions, CTA — what the renderer executed
+  status            String   @default("planned") // planned | rendering | rendered | failed
+  assetId           String? // MediaAsset id of the rendered output (null until rendered)
+  adIdeaId          String? // AdIdea that inspired this clip, when applicable
+  viralityScore     Int? // 0-100 predicted-performance estimate (null = fallback planner, no score)
+  viralityRationale String? // why the agent gave that score
+  keywords          String? // JSON string[] of words to emphasise in captions
+  voScript          String? // voiceover mode: the narration script that was synthesized
+  errorMessage      String?
+  job               VideoJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@index([jobId, kind, rank])
+}
+
+// A viral-pattern brief distilled by a trend agent from scraped TikTok/Instagram
+// top performers (Apify). Metadata/patterns only — never other creators' video
+// files. Feeds Studio's reel/montage planners so edits reflect current trends.
+model TrendInsight {
+  id         String   @id @default(cuid())
+  userId     String   @default("") // "" = workspace research; else a beta user's own
+  platform   String // "tiktok" | "instagram" | "youtube" | "linkedin" | "pinterest" | "facebook"
+  topic      String // the search topic/keywords used
+  rank       Int      @default(0)
+  title      String
+  hook       String // opening pattern that works
+  format     String // e.g. "talking-head + text overlay", "fast b-roll cuts"
+  pacing     String? // cut rhythm / clip-length guidance
+  sound      String? // trending sound/style, if any
+  whyItWorks String?
+  evidence   String? // public source URL(s) / handle
+  metrics    String? // JSON: views/likes/shares ranges observed
+  score      Int? // 0-100 relevance/strength (agent estimate)
+  createdAt  DateTime @default(now())
+
+  @@index([platform, createdAt])
+}
+
+// ─── SEO/GEO suite + website builder ─────────────────────────────────────────
+
+// A website or landing-page project built in the in-app builder. One home Page
+// minimum; multi-page supported. Published in-app (served at /s/<slug>) and/or
+// pushed to external targets (WordPress/FTP) via src/lib/publish.ts.
+model Site {
+  id             String           @id @default(cuid())
+  userId         String           @default("") // "" = workspace; else the creating user's sandbox
+  name           String
+  slug           String           @unique
+  kind           String           @default("landing") // "landing" | "site"
+  status         String           @default("draft") // draft | published
+  publishTargets String? // JSON: which targets it's published to
+  publishedUrl   String? // primary live URL (in-app or external)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  pages          Page[]
+  messages       BuilderMessage[]
+}
+
+// A single page of a Site: a self-contained HTML document + its SEO metadata.
+model Page {
+  id             String   @id @default(cuid())
+  siteId         String
+  path           String   @default("/") // "/", "/pricing", ...
+  isHome         Boolean  @default(false)
+  order          Int      @default(0)
+  title          String   @default("Untitled")
+  html           String   @default("") // working draft HTML (self-contained)
+  publishedHtml  String? // last published HTML (served publicly)
+  seoTitle       String?
+  seoDescription String?
+  seoKeywords    String?
+  jsonLd         String? // JSON-LD structured data block
+  site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([siteId, order])
+}
+
+// Builder chat history for a Site (web-designer-agent, Opus).
+model BuilderMessage {
+  id        String   @id @default(cuid())
+  siteId    String
+  pageId    String? // which page the turn targeted
+  role      String // "user" | "assistant"
+  content   String
+  site      Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([siteId, createdAt])
+}
+
+// An SEO/GEO blog or FAQ piece generated by content-writer-agent, ready to
+// preview and publish to any target.
+model ContentDraft {
+  id             String   @id @default(cuid())
+  userId         String   @default("") // "" = workspace; else the creating user's sandbox
+  kind           String // "blog" | "faq"
+  title          String
+  slug           String
+  bodyHtml       String
+  excerpt        String?
+  seoTitle       String?
+  seoDescription String?
+  keywords       String?
+  jsonLd         String? // Article / FAQPage JSON-LD
+  status         String   @default("draft") // draft | published
+  target         String? // where it was published
+  publishedUrl   String?
+  sourceReportId String? // AgentReport that informed it
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// Audit trail of every publish/deploy attempt (in-app, export, WordPress, FTP).
+model PublishLog {
+  id             String   @id @default(cuid())
+  targetType     String // "in_app" | "export" | "wordpress" | "ftp"
+  targetRef      String? // url/host/path pushed to
+  siteId         String?
+  pageId         String?
+  contentDraftId String?
+  ok             Boolean
+  message        String?
+  url            String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// A CapCut-style viral template blueprint distilled by template-research-agent
+// from scraped TikTok/Instagram top performers (Apify) for a niche. Blueprints
+// (reproducible editing recipes) + ready-to-use captions/hashtags per platform —
+// never other creators' actual video files. Feeds the calendar composer.
+model ContentTemplate {
+  id           String   @id @default(cuid())
+  userId       String   @default("") // "" = workspace research; else a beta user's own
+  niche        String // the research niche/topic used
+  rank         Int      @default(0)
+  title        String
+  format       String // intended format: reel | post | carousel | short | video | story
+  blueprint    String // markdown step-by-step recipe: beats, overlays, transitions, timing, music vibe
+  hook         String // opening 2-3s pattern, written out
+  whyItWorks   String?
+  captions     String // JSON { instagram, tiktok, facebook, youtube, linkedin, pinterest, gbp } — ready-to-use captions
+  hashtags     String // JSON, same keys as captions — YouTube key holds tags, gbp stays empty
+  youtubeTitle String? // suggested YouTube title (YT needs a title separate from the description)
+  evidence     String? // public source URL(s) / handle
+  score        Int? // 0-100 relevance/strength (agent estimate)
+  status       String   @default("new") // new | saved | used | archived
+  createdAt    DateTime @default(now())
+
+  @@index([niche, createdAt])
+}
+
+// Daily ad campaign performance snapshot (read-first). One table for both ad
+// networks — `network` separates Meta from Google Ads.
+model RoasSnapshot {
+  id           String   @id @default(cuid())
+  userId       String   @default("") // "" = the business ad account; else a beta user's own
+  network      String   @default("meta") // "meta" | "google"
+  campaignId   String
+  campaignName String
+  date         DateTime
+  spend        Float
+  revenue      Float?
+  roas         Float?
+  impressions  Int?
+  clicks       Int?
+  raw          String? // JSON string of the full insights row
+  createdAt    DateTime @default(now())
+
+  @@unique([campaignId, date, userId, network])
+}
+
+// ─── Leads CRM + newsletter (HubSpot-style, scoped per user like everything) ──
+
+// A lead/contact: captured manually, by webhook (site forms, n8n), or imported.
+// Kanban statuses are validated strings (SQLite: no enums).
+model Lead {
+  id          String    @id @default(cuid())
+  userId      String    @default("") // "" = the business's book; else a beta user's own
+  name        String
+  email       String?
+  phone       String?
+  company     String?
+  source      String    @default("manual") // manual | webhook | site | import | meta | google | referral
+  detail      String? // free-form context: what they asked for, budget, notes
+  score       Int? // 0-100 lead quality
+  scoreReason String? // one-line rationale (heuristic or agent)
+  status      String    @default("new") // new | contacted | booked | lost | callback | no_contact
+  subscribed  Boolean   @default(true) // newsletter opt-in (unsubscribe flips it)
+  lastTouch   DateTime? // last status change / contact
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+}
+
+// A newsletter campaign. Sending is approval-gated and executed by the worker
+// via the scope's own SMTP connection — never in a request thread.
+model Newsletter {
+  id           String    @id @default(cuid())
+  userId       String    @default("")
+  subject      String
+  bodyHtml     String
+  status       String    @default("draft") // draft | pending_approval | approved | sending | sent | failed
+  audience     String    @default("subscribed") // subscribed | status:<kanban status>
+  sentCount    Int       @default(0)
+  failedCount  Int       @default(0)
+  sentAt       DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, status])
+}
+
+// ─── Director (codename "fable") — the conversational AI video editor ─────────
+// A project's STATE is its FablePlan JSON (like Page.html in the site builder);
+// chat turns amend the plan, renders freeze it into immutable revisions that
+// execute as VideoJobs (mode "fable"). SQLite-safe: JSON-as-string, loose refs.
+
+model FableProject {
+  id           String          @id @default(cuid())
+  userId       String          @default("") // "" = workspace; else the creating user's sandbox
+  title        String          @default("Untitled cut")
+  status       String          @default("preparing") // preparing (probe+transcribe) | ready | failed
+  plan         String? // CURRENT working FablePlan JSON — the artifact the chat edits
+  planVersion  Int             @default(0)
+  errorMessage String? // populated when status = failed — surfaced, never silent
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  sources      FableSource[]
+  messages     FableMessage[]
+  revisions    FableRevision[]
+}
+
+// Project-level source cache: probed + transcribed ONCE per project; copied into
+// each render job's VideoSource rows so the worker never re-transcribes.
+model FableSource {
+  id           String       @id @default(cuid())
+  projectId    String
+  index        Int // 0-based; FableScene.sourceIndex refers to this
+  assetId      String // MediaAsset id (loose ref, house style)
+  transcript   String? // word-level JSON, cached
+  width        Int?
+  height       Int?
+  durationSecs Float?
+  hasAudio     Boolean      @default(true)
+  status       String       @default("pending") // pending | ready | failed
+  project      FableProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, index])
+}
+
+model FableMessage {
+  id           String       @id @default(cuid())
+  projectId    String
+  role         String // "user" | "assistant"
+  content      String // assistant = the director's plan summary
+  planSnapshot String? // plan JSON AFTER this assistant turn — enables restore/undo
+  project      FableProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt    DateTime     @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+// An immutable rendered (or rendering) snapshot. One revision = one VideoJob.
+model FableRevision {
+  id        String       @id @default(cuid())
+  projectId String
+  number    Int // 1-based, monotonic per project
+  quality   String       @default("draft") // draft (480p preview) | final (1080p)
+  plan      String // the FROZEN plan JSON this render executed
+  jobId     String // VideoJob id (loose ref, like RoasSnapshot)
+  project   FableProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+
+  @@unique([projectId, number])
+}
+
+// Product analytics event (P0.1): one row per funnel moment — signup, connect,
+// upload, job lifecycle, draft, approval, publish, usage_metered. Fire-and-
+// forget writes via track() in src/lib/events.ts; the internal metrics
+// dashboard reads them. Props are a JSON string (SQLite).
+model Event {
+  id        String   @id @default(cuid())
+  userId    String   @default("") // "" = workspace/anonymous; else the acting user
+  name      String // e.g. "job_started", "post_approved", "usage_metered"
+  props     String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+}
+
+// A won deal — the revenue side of Spend vs Revenue (Meta). High-ticket kitchen
+// sales close offline long after the click, so revenue comes from HERE (manual
+// entry on /ads, or the CRM/n8n webhook), never from Meta pixel values.
+model Deal {
+  id         String   @id @default(cuid())
+  userId     String   @default("") // "" = the business ledger; else a beta user's own
+  wonAt      DateTime
+  amount     Float // GBP
+  source     String   @default("meta") // meta | organic | referral | other
+  name       String? // client / project label
+  notes      String?
+  createdVia String   @default("manual") // manual | webhook
+  createdAt  DateTime @default(now())
+
+  @@index([wonAt])
+}
+
+// Dashboard users. Two roles: "admin" (full access) and "member" (creation
+// features only — no credentials, no financials, no publish/spend approvals).
+// Passwords are scrypt-hashed (src/lib/auth.ts); sessions are HMAC cookies.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         String   @default("member") // admin | member
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// THE brand a scope's agents research and write FOR. One row per scope:
+// userId "" is the workspace (the owner's business, captured by onboarding at
+// /welcome), any other userId is a member's own brand. Rendered into a brief
+// (renderBrandBrief in src/lib/brand-profile.ts) that every agent prompt reads —
+// no business facts live in prompt files.
+model BrandProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique // "" = the workspace, else the owning User
+  businessName    String
+  whatYouSell     String // products/services + what makes them different
+  audience        String // who buys, and where
+  voice           String? // tone-of-voice notes ("warm and premium", "cheeky", ...)
+  region          String? // e.g. "UK", "Manchester"
+  goals           String? // what they want their marketing to achieve
+  creativeLicence String? // full | balanced | minimal | strict — how far the AI may stray from brand
+  channels        String? // comma list of channels the user plans to publish to
+  siteUrl         String? // the website the brand was inferred from (prefills "Update from my website")
+  // Onboarding quiz — everything a website rarely says outright. All optional.
+  locations       String? // branches/showrooms/venues with addresses, free text
+  serviceAreas    String? // towns/regions the business serves or targets
+  phone           String?
+  email           String?
+  address         String? // primary postal address
+  products        String? // detailed products/services list
+  priceBand       String? // e.g. "£30k–£100k projects", "£25–£60 per item"
+  offers          String? // current offers (agents verify before use, never invent)
+  usps            String? // what genuinely sets them apart
+  competitors     String? // comma list — agents know them, never disparage by name
+  keywords        String? // comma list of target search terms
+  hashtags        String? // comma/space list of brand hashtags
+  palette         String? // JSON array of hex colours read from the site
+  fonts           String? // comma list of type families read from the site
+  socialLinks     String? // JSON object { instagram: url, ... }
+  seasonality     String? // key seasonal moments for this business
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Iris (the in-app AI guide) — one rolling chat thread per user; userId IS the thread.
+model AssistMessage {
+  id        String   @id @default(cuid())
+  userId    String   @default("")
+  role      String // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+// A support ticket Iris raises when she can't resolve an issue from chat.
+model SupportTicket {
+  id         String   @id @default(cuid())
+  userId     String   @default("")
+  subject    String
+  summary    String
+  urgency    String   @default("normal") // "low" | "normal" | "high"
+  status     String   @default("open") // "open" | "resolved"
+  resolution String? // admin's note on resolve — surfaced back to the member in Iris
+  transcript String   @default("[]") // JSON snapshot of the recent chat at raise time
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+}

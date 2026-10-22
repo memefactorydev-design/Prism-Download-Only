@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # onnxruntime-node (pulled in by @huggingface/transformers) downloads the
+      # CUDA execution provider from NuGet on linux/x64 at install time. Lint
+      # and build never run inference, so skip that large third-party download
+      # — it timed out on the runner and failed the job.
+      - run: npm ci
+        env:
+          ONNXRUNTIME_NODE_INSTALL: skip
+      - run: npm run lint
+      - run: npm test
+      # build runs `prisma generate && next build`; no DB needed (client is lazy).
+      - run: npm run build

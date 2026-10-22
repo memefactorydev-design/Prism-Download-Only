@@ -1,0 +1,18 @@
+[Unit]
+Description=Prism AI worker (renders + agent dreams)
+After=network.target
+
+[Service]
+User=prism
+WorkingDirectory=/opt/prism/app
+ExecStart=/usr/bin/npm run worker
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=TZ=Europe/London
+# Renders are CPU-heavy; keep the box responsive for co-tenants.
+Environment=RENDER_CONCURRENCY=8
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

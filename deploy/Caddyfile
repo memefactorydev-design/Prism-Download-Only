@@ -1,0 +1,9 @@
+# Set your domain (or use <server-ip>.sslip.io for instant HTTPS without DNS).
+# Example: prism.example.com { ... }
+prism.example.com {
+	reverse_proxy 127.0.0.1:3200
+	request_body {
+		max_size 6GB
+	}
+	encode zstd gzip
+}

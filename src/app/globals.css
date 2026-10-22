@@ -1,0 +1,509 @@
+@import "tailwindcss";
+
+/* ─── Prism AI — "Refraction" design system ────────────────────────────────────
+   Obsidian base, refracted light. The spectrum (indigo → violet → rose → amber)
+   is the brand — spent sparingly on marks, actives and one-line moments, never
+   as wallpaper. Dark-first; light mode fully supported.                        */
+
+:root {
+  /* Obsidian base, refracted light — the brand is dark-first, always. */
+  color-scheme: dark;
+  --background: #0b0b12; /* obsidian */
+  --surface: #0b0b12;
+  --card: #15151f; /* surface */
+  --card-2: #1b1b27; /* surface-2 (raised) */
+  --foreground: #ffffff; /* white light */
+  --muted: #b7b7c6; /* mist */
+  --faint: #82828f;
+  --border: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --accent: #6d5af7; /* indigo */
+  --accent-2: #a64bf4; /* violet */
+  --accent-3: #ff4e8e; /* rose */
+  --accent-4: #ff9e5a; /* amber */
+  --accent-hover: #8272ff;
+  --accent-foreground: #ffffff;
+  --accent-soft: rgba(109, 90, 247, 0.18);
+  --gradient-accent: linear-gradient(135deg, #6d5af7 0%, #a64bf4 100%);
+  --gradient-brand: linear-gradient(100deg, #6d5af7 0%, #a64bf4 34%, #ff4e8e 68%, #ff9e5a 100%);
+  --ring: rgba(109, 90, 247, 0.55);
+  --glow: 0 14px 40px -8px rgba(109, 90, 247, 0.5);
+  --success: #2dd48f;
+  --danger: #ff5a5f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 2px 4px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.6);
+  --grid: rgba(255, 255, 255, 0.022);
+}
+
+/* Light mode — same spectrum, silver-white canvas (the pack's light logo stage).
+   Activated by the top-bar toggle via <html data-theme="light">; obsidian stays
+   the brand default. */
+[data-theme="light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --surface: #f4f4f8;
+  --card: #ffffff;
+  --card-2: #f4f4f8;
+  --foreground: #0b0b12;
+  --muted: #5c5c6b;
+  --faint: #6d6d7c;
+  --border: rgba(11, 11, 18, 0.09);
+  --border-strong: rgba(11, 11, 18, 0.16);
+  --accent: #6d5af7;
+  --accent-2: #a64bf4;
+  --accent-3: #ff4e8e;
+  --accent-4: #ff9e5a;
+  --accent-hover: #5b48e8;
+  --accent-soft: rgba(109, 90, 247, 0.12);
+  --ring: rgba(109, 90, 247, 0.45);
+  --glow: 0 12px 32px -10px rgba(109, 90, 247, 0.35);
+  --success: #16a34a;
+  --danger: #e5484d;
+  --shadow: 0 1px 2px rgba(11, 11, 18, 0.04), 0 8px 24px rgba(11, 11, 18, 0.06);
+  --shadow-lg: 0 2px 4px rgba(11, 11, 18, 0.05), 0 24px 48px rgba(11, 11, 18, 0.1);
+  --grid: rgba(11, 11, 18, 0.03);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-3: var(--accent-3);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-4: var(--accent-4);
+  --color-success: var(--success);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif), Georgia, serif;
+  --font-mono: var(--font-mono-brand), ui-monospace, monospace;
+  --radius: 0.75rem;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* First-class utilities so `hover:shadow-glow` etc. work. */
+@utility shadow-glow {
+  box-shadow: var(--glow);
+}
+
+body {
+  /* Ambient spectral glow (brand pack): indigo high-right, rose low-left. */
+  background:
+    radial-gradient(720px 420px at 78% -6%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 60%),
+    radial-gradient(620px 380px at 8% 12%, color-mix(in oklab, var(--accent-3) 10%, transparent), transparent 60%),
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 100% 44px,
+    var(--surface);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Consistent, soft focus ring across interactive elements. */
+*:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+  border-radius: 8px;
+}
+
+@layer components {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.025em;
+  }
+
+  /* The single editorial note: Fraunces italic (brand pack: "one serif note"). */
+  .font-serif-accent {
+    font-family: var(--font-serif);
+    font-style: italic;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow);
+  }
+
+  /* Frosted surface for the top bar / drawers. */
+  .glass {
+    background: color-mix(in oklab, var(--card) 72%, transparent);
+    backdrop-filter: blur(16px) saturate(1.4);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    border: 1px solid var(--border);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.625rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    padding: 0.5rem 0.9rem;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.08s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:active {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--gradient-accent);
+    color: var(--accent-foreground);
+    box-shadow: 0 6px 18px -6px color-mix(in oklab, var(--accent) 70%, transparent);
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    box-shadow: var(--glow);
+    transform: translateY(-1px);
+  }
+  .btn-secondary {
+    background: transparent;
+    color: var(--foreground);
+    border: 1px solid var(--border-strong);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--foreground) 6%, transparent);
+    border-color: color-mix(in oklab, var(--accent) 45%, var(--border-strong));
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: color-mix(in oklab, var(--foreground) 6%, transparent);
+    color: var(--foreground);
+  }
+
+  .input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border-strong);
+    border-radius: 0.625rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--foreground);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input::placeholder {
+    color: var(--faint);
+  }
+  .input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--ring);
+    outline: none;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 9999px;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  /* Electric gradient fill (brand mark, active states, hero icons). */
+  .bg-gradient-accent {
+    background: var(--gradient-accent);
+  }
+  .bg-gradient-brand {
+    background: var(--gradient-brand);
+  }
+  /* Gradient text for punchy headings. */
+  .text-gradient {
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-brand {
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Shifting brand gradient for hero surfaces. */
+  .animated-gradient {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2), var(--accent-3), var(--accent-4), var(--accent));
+    background-size: 300% 300%;
+    animation: gradient-pan 12s ease infinite;
+  }
+  /* Interactive surface: lifts and glows on hover. */
+  .card-hover {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .card-hover:hover {
+    transform: translateY(-3px);
+    border-color: color-mix(in oklab, var(--accent) 55%, var(--border));
+    box-shadow: var(--glow);
+  }
+  /* Loading shimmer. */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--foreground) 6%, transparent) 25%,
+      color-mix(in oklab, var(--foreground) 12%, transparent) 37%,
+      color-mix(in oklab, var(--foreground) 6%, transparent) 63%
+    );
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 0.5rem;
+  }
+
+  /* ─── Waiting surfaces (the loading system) ────────────────────────────────
+     A spectrum ring, sequential dots, and a progress track with a moving light.
+     Used by <Spinner>/<WorkingState> to keep people engaged mid-render. */
+
+  /* Spectrum conic ring — one spinner, on brand. */
+  .prism-spinner {
+    display: inline-block;
+    border-radius: 9999px;
+    background: conic-gradient(from 0deg, var(--accent), var(--accent-2), var(--accent-3), var(--accent-4), var(--accent));
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+    animation: prism-spin 0.85s linear infinite;
+  }
+
+  /* Three dots filling in sequence — a live "…". */
+  .prism-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .prism-dots > span {
+    width: 3px;
+    height: 3px;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.35;
+    animation: prism-dot 1.2s ease-in-out infinite;
+  }
+  .prism-dots > span:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+  .prism-dots > span:nth-child(3) {
+    animation-delay: 0.36s;
+  }
+
+  /* The status line softly fades in when the wording changes. */
+  .prism-status-line {
+    animation: fade-up 0.35s ease both;
+  }
+
+  /* Progress track — determinate fill or an indeterminate spectrum sweep. */
+  .prism-progress {
+    position: relative;
+    height: 6px;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--foreground) 8%, transparent);
+  }
+  .prism-progress-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: var(--gradient-brand);
+    background-size: 200% 100%;
+    box-shadow: 0 0 12px -2px color-mix(in oklab, var(--accent) 70%, transparent);
+    transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: gradient-pan 6s ease infinite;
+  }
+  .prism-progress-indeterminate {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, transparent, var(--accent-2), var(--accent-3), transparent);
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: prism-sweep 1.35s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+  .prism-working {
+    animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Empty-state art: themed opacity (data-theme aware — Tailwind's `dark:`
+     variant tracks the OS, not our toggle) + a slow ambient drift so the
+     surface feels alive without demanding attention. */
+  .prism-empty-art {
+    opacity: 0.65;
+  }
+  [data-theme="light"] .prism-empty-art {
+    opacity: 0.35;
+  }
+  .prism-ambient {
+    animation: prism-ambient 36s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+
+/* Restrained entrance motion (used where JS motion isn't warranted). */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-in {
+  animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes gradient-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0 0;
+  }
+}
+
+@keyframes prism-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes prism-dot {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1.5px);
+  }
+}
+
+@keyframes prism-sweep {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
+  }
+}
+
+@keyframes prism-ambient {
+  from {
+    transform: scale(1) translateX(0);
+  }
+  to {
+    transform: scale(1.07) translateX(-1.5%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Board deck slides (/reports/deck/[id]) ────────────────────────────────
+   On screen: 16:9 cards. In print: one landscape page per slide — the
+   browser's Save-as-PDF is the deck export. */
+.deck-slide {
+  aspect-ratio: 16 / 9;
+  display: flex;
+  flex-direction: column;
+  padding: 3rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  overflow: hidden;
+}
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+  body {
+    background: #ffffff !important;
+  }
+  /* hide the app chrome; the deck owns the page */
+  header,
+  aside,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+  .deck-slide {
+    aspect-ratio: auto;
+    height: 100vh;
+    width: 100vw;
+    border: none;
+    border-radius: 0;
+    page-break-after: always;
+    break-after: page;
+    background: #ffffff;
+    color: #16161d;
+    padding: 3.5rem 4rem;
+  }
+  .deck-slide .text-faint,
+  .deck-slide .text-muted {
+    color: #5a5a66 !important;
+  }
+}
+
+/* First Light media reveal: a slow spectrum sweep while a visual is generating. */
+.prism-shimmer {
+  background:
+    linear-gradient(110deg, transparent 30%, rgba(109, 90, 247, 0.22) 42%, rgba(255, 78, 142, 0.2) 50%, rgba(255, 158, 90, 0.18) 58%, transparent 70%),
+    var(--surface, #15151f);
+  background-size: 220% 100%;
+  animation: prism-shimmer-sweep 2.2s ease-in-out infinite;
+}
+@keyframes prism-shimmer-sweep {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}

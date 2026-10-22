@@ -1,0 +1,16 @@
+[Unit]
+Description=Prism AI web (Next.js)
+After=network.target
+
+[Service]
+User=prism
+WorkingDirectory=/opt/prism/app
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=PORT=3200
+Environment=TZ=Europe/London
+
+[Install]
+WantedBy=multi-user.target

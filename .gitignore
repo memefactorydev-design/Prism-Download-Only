@@ -1,0 +1,64 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files — never commit real credentials; .env.example is the template
+.env*
+!.env.example
+
+# database (SQLite dev files)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# uploaded media (dev storage)
+/uploads/*
+!/uploads/.gitkeep
+
+# Studio: downloaded Whisper models + scratch render workspace
+/.cache/
+/uploads/tmp/
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Named-agent runtime data (journal, dreams, state) — user data, not code
+/data/
+
+# Named-agent evolved memories — machine-written runtime state (dream cycles),
+# user data like /data; the human-authored AGENT/SOUL/SKILLS files ARE tracked.
+agents/*/MEMORY.md
+agents/*/LEARNINGS.md
